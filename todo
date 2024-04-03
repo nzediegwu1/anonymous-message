@@ -1,0 +1,4 @@
+- setup a Config struct which uses Clap crate to parse env variables just like in the real-world-example
+- implement error handlers in core
+- write e2e test using test db
+- implement query parser for pagination, equality and conditional query

@@ -1,0 +1,7 @@
+{
+  "errors": [
+    "password: Field([ValidationError { code: \"length\", message: None, params: {\"min\": Number(8), \"value\": String(\"pass\")} }])",
+    "email: Field([ValidationError { code: \"email\", message: None, params: {\"value\": String(\"nzegmail.com\")} }])"
+  ],
+  "message": "Validation Error"
+}
