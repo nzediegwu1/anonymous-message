@@ -1,24 +1,31 @@
 use crate::{
-    core::extractors::ValidatedBody,
+    core::{extractors::ValidatedBody, models::ApiError},
     modules::auth::{
         models::{Message, SignupBody, User},
+        service::signup,
         validation_errors::SignupValidationError,
     },
+    ApiContext,
 };
+use axum::response::IntoResponse;
 use axum::{
     body::Body,
     response::{Json, Response},
+    Extension,
 };
 
 pub async fn handle_signup(
+    ctx: Extension<ApiContext>,
     ValidatedBody(body, _): ValidatedBody<SignupBody, SignupValidationError>,
 ) -> Result<Json<User>, Response<Body>> {
     // Process the validated request body
-    Ok(Json(User {
-        email: body.email,
-        user_id: String::from("random_id"),
-        token: String::from("random_token")
-    }))
+    let user = signup(ctx, Json(body)).await.map_err(|err| {
+        ApiError::BadRequest {
+            errors: vec![err.to_string()],
+        }
+        .into_response()
+    })?;
+    return Ok(user);
 }
 
 pub async fn hello_world() -> Json<Message> {

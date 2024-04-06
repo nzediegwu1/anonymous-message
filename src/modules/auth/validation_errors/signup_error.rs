@@ -12,6 +12,7 @@ impl TransformValidationErrors for SignupValidationError {
 
         for (field, field_errors) in errors.field_errors() {
             for error in field_errors {
+              // TODO: abstract this into core and make reusable
                 match error.code {
                     Cow::Borrowed("length") => {
                         let min = error
@@ -20,7 +21,20 @@ impl TransformValidationErrors for SignupValidationError {
                             .and_then(|min| min.as_u64())
                             .unwrap_or(0);
 
-                        messages.push(format!("{}: minimum length is {} characters.", field, min));
+                        let max = error
+                            .params
+                            .get("max")
+                            .and_then(|max| max.as_u64())
+                            .unwrap_or(0);
+
+                        let message_length = error.params["value"].to_string().len();
+                        if message_length < min.try_into().unwrap() {
+                            messages
+                                .push(format!("{}: minimum length is {} characters.", field, min));
+                        } else {
+                            messages
+                                .push(format!("{}: maximum length is {} characters.", field, max));
+                        }
                     }
                     Cow::Borrowed("email") => {
                         let email = error
