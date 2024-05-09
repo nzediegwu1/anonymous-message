@@ -1,8 +1,9 @@
+use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
 #[derive(Deserialize, Serialize)]
-pub struct User {
+pub struct AuthUser {
     pub user_id: String,
     pub email: String,
     pub token: String,
@@ -19,4 +20,13 @@ pub struct SignupBody {
 
     #[validate(length(max = 80, min = 2))]
     pub name: String,
+}
+
+#[derive(Serialize)]
+pub struct UserResponse {
+    pub user_id: Option<String>,
+    pub email: Option<String>,
+    pub name: Option<String>,
+    pub profile_link: Option<String>,
+    pub created_at: Option<NaiveDateTime>,
 }

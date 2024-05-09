@@ -22,6 +22,7 @@ impl ErrorResponse {
                 StatusCode::NOT_FOUND => "Not Found".to_string(),
                 StatusCode::BAD_REQUEST => "Bad Request".to_string(),
                 StatusCode::UNPROCESSABLE_ENTITY => "Unprocessable Entity".to_string(),
+                StatusCode::CONFLICT => "Conflict".to_string(),
                 _ => "Internal Server Error".to_string(),
             },
         }
@@ -51,6 +52,9 @@ pub enum ApiError {
 
     #[error("an internal server error occurred")]
     InternalServer(#[from] anyhow::Error),
+
+    #[error("a conflict occurred, eg: data already exists")]
+    Conflict(String)
 }
 
 impl ApiError {
@@ -61,6 +65,7 @@ impl ApiError {
             Self::NotFound(..) => StatusCode::NOT_FOUND,
             Self::BadRequest { .. } => StatusCode::BAD_REQUEST,
             Self::Database(_) | Self::InternalServer(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Conflict(_) => StatusCode::CONFLICT
         }
     }
 }
@@ -87,13 +92,22 @@ impl IntoResponse for ApiError {
                 // TODO: we probably want to use `tracing` instead
                 // so that this gets linked to the HTTP request by `TraceLayer`.
                 // log::error!("SQLx error: {:?}", e);
+                let code = self.status_code();
+                return (code, Json(ErrorResponse::new(vec![e.to_string()], code))).into_response();
             }
 
             Self::InternalServer(ref e) => {
                 // TODO: we probably want to use `tracing` instead
                 // so that this gets linked to the HTTP request by `TraceLayer`.
                 // log::error!("Generic error: {:?}", e);
+                let code = self.status_code();
+                return (code, Json(ErrorResponse::new(vec![e.to_string()], code))).into_response();
             }
+
+            Self::Conflict(ref e) => {
+              let code = self.status_code();
+              return (code, Json(ErrorResponse::new(vec![e.to_string()], code))).into_response();
+          }
 
             // Other errors get mapped normally.
             _ => (),

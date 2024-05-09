@@ -1,35 +1,16 @@
-use anyhow::{anyhow, Context, Error, Ok};
-use argon2::{password_hash::SaltString, Argon2, PasswordHash};
-use axum::{Extension, Json};
-
 use crate::{
-    modules::auth::models::{SignupBody, User},
+    core::models::ApiError,
+    modules::auth::models::{AuthUser, SignupBody, UserResponse},
     ApiContext,
 };
-
-pub async fn signup(
-    ctx: Extension<ApiContext>,
-    Json(body): Json<SignupBody>,
-) -> Result<Json<User>, Error> {
-    let password_hash = hash_password(body.password).await?;
-
-    let user_id = sqlx::query_scalar!(
-        // language=PostgreSQL
-        r#"insert into users (email, password, name) values ($1, $2, $3) returning id"#,
-        body.email,
-        password_hash,
-        body.name
-    )
-    .fetch_one(&ctx.db)
-    .await?;
-
-    Ok(Json(User {
-        user_id: user_id.to_string(),
-        email: body.email,
-        token: "".to_string(),
-        name: body.name,
-    }))
-}
+use anyhow::{anyhow, Context, Error};
+use argon2::{password_hash::SaltString, Argon2, PasswordHash};
+use axum::{
+    body::Body,
+    response::{IntoResponse, Response},
+};
+use axum::{Extension, Json};
+use std::result::Result::Ok;
 
 async fn hash_password(password: String) -> Result<String, Error> {
     Ok(
@@ -42,4 +23,58 @@ async fn hash_password(password: String) -> Result<String, Error> {
         .await
         .context("Panic in generating password hash")??,
     )
+}
+
+pub async fn signup(
+    ctx: Extension<ApiContext>,
+    Json(body): Json<SignupBody>,
+) -> Result<Json<AuthUser>, Response<Body>> {
+    // check if the user exists in db, if exists, throw already exists error
+    // otherwise save the user, generate token and return auth-user with token
+    match sqlx::query_scalar!(r#"select email from "users" where email = $1"#, body.email)
+        .fetch_one(&ctx.db)
+        .await
+    {
+        Ok(_) => Err(ApiError::Conflict("Email already exists".to_string()).into_response()),
+        Err(sqlx::Error::RowNotFound) => {
+            let password_hash = hash_password(body.password)
+                .await
+                .map_err(|e| ApiError::InternalServer(e).into_response())?;
+
+            let user_id = sqlx::query_scalar!(
+                // language=PostgreSQL
+                r#"insert into users (email, password, name) values ($1, $2, $3) returning id"#,
+                body.email,
+                password_hash,
+                body.name
+            )
+            .fetch_one(&ctx.db)
+            .await
+            .map_err(|err| ApiError::Database(err).into_response())?;
+
+            Ok(Json(AuthUser {
+                user_id: user_id.to_string(),
+                email: body.email,
+                token: "".to_string(),
+                name: body.name,
+            }))
+        }
+        Err(e) => Err(ApiError::Database(e).into_response()),
+    }
+}
+
+pub async fn find_all(
+    ctx: Extension<ApiContext>,
+) -> Result<Json<Vec<UserResponse>>, Response<Body>> {
+    let result = sqlx::query_as!(
+        UserResponse,
+        r#"select id::text as user_id, email, name, created_at, profile_link from "users""#
+    )
+    .fetch_all(&ctx.db)
+    .await;
+
+    match result {
+        Ok(data) => Ok(Json(data)),
+        Err(e) => Err(ApiError::Database(e).into_response()),
+    }
 }

@@ -3,7 +3,7 @@ use axum::{
     Router,
 };
 
-use super::controllers::{handle_signup, hello_world};
+use super::controllers::{find_users, handle_signup, hello_world};
 
 fn route(path: &str, method_router: MethodRouter<()>) -> Router {
     Router::new().route(path, method_router)
@@ -14,7 +14,7 @@ fn post_auth() -> Router {
 }
 
 fn get_auth() -> Router {
-    route("/", get(hello_world))
+    route("/", get(hello_world)).route("/users", get(find_users))
 }
 
 pub fn auth_routes() -> Router {
