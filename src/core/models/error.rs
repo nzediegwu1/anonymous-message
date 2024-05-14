@@ -1,6 +1,6 @@
 use axum::{
     body::Body,
-    http::{header::WWW_AUTHENTICATE, HeaderMap, HeaderValue, StatusCode},
+    http::StatusCode,
     response::{IntoResponse, Response},
     Json,
 };
@@ -30,14 +30,11 @@ impl ErrorResponse {
 }
 #[derive(Debug)]
 pub struct ErrorMessage {
-    message: String,
+    pub message: String,
 }
 
 #[derive(thiserror::Error, Debug)]
 pub enum ApiError {
-    #[error("authentication required")]
-    Unauthorized(ErrorMessage),
-
     #[error("user may not perform this action")]
     Forbidden,
 
@@ -54,18 +51,17 @@ pub enum ApiError {
     InternalServer(#[from] anyhow::Error),
 
     #[error("a conflict occurred, eg: data already exists")]
-    Conflict(String)
+    Conflict(String),
 }
 
 impl ApiError {
     fn status_code(&self) -> StatusCode {
         match self {
-            Self::Unauthorized(..) => StatusCode::UNAUTHORIZED,
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::NotFound(..) => StatusCode::NOT_FOUND,
             Self::BadRequest { .. } => StatusCode::BAD_REQUEST,
             Self::Database(_) | Self::InternalServer(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::Conflict(_) => StatusCode::CONFLICT
+            Self::Conflict(_) => StatusCode::CONFLICT,
         }
     }
 }
@@ -77,17 +73,6 @@ impl IntoResponse for ApiError {
                 let code = self.status_code();
                 return (code, Json(ErrorResponse::new(errors.to_vec(), code))).into_response();
             }
-            Self::Unauthorized(_) => {
-                return (
-                    self.status_code(),
-                    [(WWW_AUTHENTICATE, HeaderValue::from_static("Token"))]
-                        .into_iter()
-                        .collect::<HeaderMap>(),
-                    self.to_string(),
-                )
-                    .into_response();
-            }
-
             Self::Database(ref e) => {
                 // TODO: we probably want to use `tracing` instead
                 // so that this gets linked to the HTTP request by `TraceLayer`.
@@ -105,9 +90,9 @@ impl IntoResponse for ApiError {
             }
 
             Self::Conflict(ref e) => {
-              let code = self.status_code();
-              return (code, Json(ErrorResponse::new(vec![e.to_string()], code))).into_response();
-          }
+                let code = self.status_code();
+                return (code, Json(ErrorResponse::new(vec![e.to_string()], code))).into_response();
+            }
 
             // Other errors get mapped normally.
             _ => (),

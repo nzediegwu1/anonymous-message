@@ -1,5 +1,8 @@
 use crate::{
-    core::models::ApiError,
+    core::{
+        models::{ApiError, JwtUser},
+        utils::auth_token,
+    },
     modules::auth::models::{AuthUser, SignupBody, UserResponse},
     ApiContext,
 };
@@ -52,10 +55,16 @@ pub async fn signup(
             .await
             .map_err(|err| ApiError::Database(err).into_response())?;
 
+            let token = auth_token(JwtUser {
+                email: body.email.clone(),
+                id: user_id.to_string(),
+            })
+            .map_err(|err| ApiError::InternalServer(err.into()).into_response())?;
+
             Ok(Json(AuthUser {
                 user_id: user_id.to_string(),
                 email: body.email,
-                token: "".to_string(),
+                token,
                 name: body.name,
             }))
         }

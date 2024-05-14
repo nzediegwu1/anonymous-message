@@ -1,5 +1,8 @@
 use crate::{
-    core::extractors::ValidatedBody,
+    core::{
+        extractors::{Authorized, ValidatedBody},
+        models::Claims,
+    },
     modules::auth::{
         models::{AuthUser, Message, SignupBody, UserResponse},
         service::{find_all, signup},
@@ -25,6 +28,7 @@ pub async fn handle_signup(
 
 pub async fn find_users(
     ctx: Extension<ApiContext>,
+    Authorized(_): Authorized<Claims>,
 ) -> Result<Json<Vec<UserResponse>>, Response<Body>> {
     let users = find_all(ctx).await?;
     Ok(users)
