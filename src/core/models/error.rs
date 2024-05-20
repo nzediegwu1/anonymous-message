@@ -39,7 +39,7 @@ pub enum ApiError {
     Forbidden,
 
     #[error("request path or resource not found")]
-    NotFound(ErrorMessage),
+    NotFound(String),
 
     #[error("error in the request body")]
     BadRequest { errors: Vec<String> },
@@ -72,6 +72,10 @@ impl IntoResponse for ApiError {
             Self::BadRequest { errors } => {
                 let code = self.status_code();
                 return (code, Json(ErrorResponse::new(errors.to_vec(), code))).into_response();
+            }
+            Self::NotFound(ref error) => {
+                let code = self.status_code();
+                return (code, Json(ErrorResponse::new(vec![error.to_string()], code))).into_response();
             }
             Self::Database(ref e) => {
                 // TODO: we probably want to use `tracing` instead

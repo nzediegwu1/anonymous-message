@@ -3,17 +3,14 @@ use crate::{
         models::{ApiError, JwtUser},
         utils::auth_token,
     },
-    modules::auth::models::{AuthUser, SignupBody, UserResponse},
+    modules::auth::models::{AuthUser, SignupBody, UserName, UserResponse},
     ApiContext,
 };
 use anyhow::{anyhow, Context, Error};
 use argon2::{password_hash::SaltString, Argon2, PasswordHash};
-use axum::{
-    body::Body,
-    response::{IntoResponse, Response},
-};
+use axum::{body::Body, http::Response, response::IntoResponse};
 use axum::{Extension, Json};
-use std::result::Result::Ok;
+use uuid::Uuid;
 
 async fn hash_password(password: String) -> Result<String, Error> {
     Ok(
@@ -85,5 +82,22 @@ pub async fn find_all(
     match result {
         Ok(data) => Ok(Json(data)),
         Err(e) => Err(ApiError::Database(e).into_response()),
+    }
+}
+
+pub async fn find_by_id(
+    ctx: Extension<ApiContext>,
+    user_id: Uuid,
+) -> Result<Json<UserName>, Response<Body>> {
+    let result = sqlx::query_scalar(r#"select name from "users" where id=$1"#)
+        .bind(user_id)
+        .fetch_optional(&ctx.db)
+        .await;
+    match result {
+        Ok(result_content) => match result_content {
+            Some(name) => Ok(Json(UserName { name })),
+            None => Err(ApiError::NotFound("User not found".to_string()).into_response()),
+        },
+        Err(e) => Err(ApiError::InternalServer(e.into()).into_response()),
     }
 }

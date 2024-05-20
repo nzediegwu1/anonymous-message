@@ -30,3 +30,8 @@ pub struct UserResponse {
     pub profile_link: Option<String>,
     pub created_at: Option<NaiveDateTime>,
 }
+
+#[derive(Serialize)]
+pub struct UserName {
+    pub name: String,
+}
