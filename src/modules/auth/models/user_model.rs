@@ -10,7 +10,7 @@ pub struct AuthUser {
     pub name: String,
 }
 
-#[derive(Debug, Deserialize, Serialize, Validate)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct SignupBody {
     #[validate(email, length(max = 80))]
     pub email: String,
@@ -22,6 +22,15 @@ pub struct SignupBody {
     pub name: String,
 }
 
+#[derive(Debug, Deserialize, Validate)]
+pub struct LoginBody {
+    #[validate(email, length(max = 80))]
+    pub email: String,
+
+    #[validate(length(min = 8))]
+    pub password: String,
+}
+
 #[derive(Serialize)]
 pub struct UserResponse {
     pub user_id: Option<String>,
@@ -29,6 +38,13 @@ pub struct UserResponse {
     pub name: Option<String>,
     pub profile_link: Option<String>,
     pub created_at: Option<NaiveDateTime>,
+}
+
+#[derive(Deserialize)]
+pub struct LoginUser {
+    pub user_id: Option<String>,
+    pub name: Option<String>,
+    pub password: Option<String>
 }
 
 #[derive(Serialize)]

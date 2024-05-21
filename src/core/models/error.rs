@@ -48,10 +48,13 @@ pub enum ApiError {
     Database(#[from] sqlx::Error),
 
     #[error("an internal server error occurred")]
-    InternalServer(#[from] anyhow::Error),
+    InternalServer(String),
 
     #[error("a conflict occurred, eg: data already exists")]
     Conflict(String),
+
+    #[error("invalid password or authorization token")]
+    Unauthorized(String),
 }
 
 impl ApiError {
@@ -62,6 +65,7 @@ impl ApiError {
             Self::BadRequest { .. } => StatusCode::BAD_REQUEST,
             Self::Database(_) | Self::InternalServer(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Conflict(_) => StatusCode::CONFLICT,
+            Self::Unauthorized(_) => StatusCode::UNAUTHORIZED,
         }
     }
 }
@@ -75,7 +79,19 @@ impl IntoResponse for ApiError {
             }
             Self::NotFound(ref error) => {
                 let code = self.status_code();
-                return (code, Json(ErrorResponse::new(vec![error.to_string()], code))).into_response();
+                return (
+                    code,
+                    Json(ErrorResponse::new(vec![error.to_string()], code)),
+                )
+                    .into_response();
+            }
+            Self::Unauthorized(ref error) => {
+                let code = self.status_code();
+                return (
+                    code,
+                    Json(ErrorResponse::new(vec![error.to_string()], code)),
+                )
+                    .into_response();
             }
             Self::Database(ref e) => {
                 // TODO: we probably want to use `tracing` instead

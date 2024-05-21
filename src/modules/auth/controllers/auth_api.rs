@@ -4,9 +4,9 @@ use crate::{
         models::Claims,
     },
     modules::auth::{
-        models::{AuthUser, Message, SignupBody, UserName, UserResponse},
-        service::{find_all, find_by_id, signup},
-        validation_errors::SignupValidationError,
+        models::{AuthUser, LoginBody, Message, SignupBody, UserName, UserResponse},
+        service::{find_all, find_by_id, login, signup},
+        validation_errors::{LoginValidationError, SignupValidationError},
     },
     ApiContext,
 };
@@ -23,7 +23,6 @@ pub async fn handle_signup(
     ctx: Extension<ApiContext>,
     ValidatedBody(body, _): ValidatedBody<SignupBody, SignupValidationError>,
 ) -> Result<Json<AuthUser>, Response<Body>> {
-    // Process the validated request body
     let user = signup(ctx, Json(body)).await?;
     Ok(user)
 }
@@ -50,4 +49,12 @@ pub async fn hello_world() -> Json<Message> {
         message: "Welcome to Auth API".to_string(),
     };
     Json(message.new())
+}
+
+pub async fn handle_login(
+    ctx: Extension<ApiContext>,
+    ValidatedBody(body, _): ValidatedBody<LoginBody, LoginValidationError>,
+) -> Result<Json<AuthUser>, Response<Body>> {
+    let user = login(ctx, Json(body)).await?;
+    Ok(user)
 }

@@ -3,11 +3,11 @@ use crate::{
         models::{ApiError, JwtUser},
         utils::auth_token,
     },
-    modules::auth::models::{AuthUser, SignupBody, UserName, UserResponse},
+    modules::auth::models::{AuthUser, LoginBody, LoginUser, SignupBody, UserName, UserResponse},
     ApiContext,
 };
 use anyhow::{anyhow, Context, Error};
-use argon2::{password_hash::SaltString, Argon2, PasswordHash};
+use argon2::{password_hash::SaltString, Argon2, PasswordHash, PasswordVerifier};
 use axum::{body::Body, http::Response, response::IntoResponse};
 use axum::{Extension, Json};
 use uuid::Uuid;
@@ -39,7 +39,7 @@ pub async fn signup(
         Err(sqlx::Error::RowNotFound) => {
             let password_hash = hash_password(body.password)
                 .await
-                .map_err(|e| ApiError::InternalServer(e).into_response())?;
+                .map_err(|error| ApiError::InternalServer(error.to_string()).into_response())?;
 
             let user_id = sqlx::query_scalar!(
                 // language=PostgreSQL
@@ -56,7 +56,7 @@ pub async fn signup(
                 email: body.email.clone(),
                 id: user_id.to_string(),
             })
-            .map_err(|err| ApiError::InternalServer(err.into()).into_response())?;
+            .map_err(|err| ApiError::InternalServer(err.to_string()).into_response())?;
 
             Ok(Json(AuthUser {
                 user_id: user_id.to_string(),
@@ -98,6 +98,48 @@ pub async fn find_by_id(
             Some(name) => Ok(Json(UserName { name })),
             None => Err(ApiError::NotFound("User not found".to_string()).into_response()),
         },
-        Err(e) => Err(ApiError::InternalServer(e.into()).into_response()),
+        Err(e) => Err(ApiError::InternalServer(e.to_string()).into_response()),
+    }
+}
+
+pub async fn login(
+    ctx: Extension<ApiContext>,
+    Json(body): Json<LoginBody>,
+) -> Result<Json<AuthUser>, Response<Body>> {
+    let exists = sqlx::query_as!(
+        LoginUser,
+        r#"select id::text as user_id, password, name from "users" where email=$1"#,
+        body.email
+    )
+    .fetch_one(&ctx.db)
+    .await;
+    match exists {
+        Ok(found) => {
+            // check if the found.password matches
+            let password_str = found.password.unwrap_or_default();
+            let parsed_password_hash = PasswordHash::new(&password_str)
+                .map_err(|error| ApiError::InternalServer(error.to_string()).into_response())?;
+
+            Argon2::default()
+                .verify_password(body.password.as_bytes(), &parsed_password_hash)
+                .map_err(|_| {
+                    ApiError::Unauthorized("Incorrect email or password".to_string())
+                        .into_response()
+                })?;
+
+            let token = auth_token(JwtUser {
+                email: body.email.clone(),
+                id: found.user_id.clone().unwrap_or_default(),
+            })
+            .map_err(|err| ApiError::InternalServer(err.to_string()).into_response())?;
+
+            Ok(Json(AuthUser {
+                user_id: found.user_id.unwrap_or_default(),
+                email: body.email,
+                token,
+                name: found.name.unwrap_or_default(),
+            }))
+        }
+        Err(e) => Err(ApiError::Database(e).into_response()),
     }
 }
