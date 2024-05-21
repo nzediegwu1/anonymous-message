@@ -10,7 +10,7 @@ axum="0.7.4"
 tokio={version = "1.29.1", features = ["full"]}
 serde = {version = "1.0.171", features = ["derive"]}
 serde_json = "1.0.103"
-sqlx = { version = "0.7.1", features = [ "runtime-tokio-rustls", "postgres", "json" ] }
+sqlx = { version = "0.7.1", features = [ "runtime-tokio-rustls", "postgres", "json", "uuid", "chrono" ] }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 tracing = "0.1.37"
 tower-http = { version= "0.5.1", features=["full"] }
@@ -23,3 +23,8 @@ regex = "1.9.1"
 anyhow = "1.0.75"
 argon2 = "0.5.3"
 rand = "0.8.5"
+chrono = {version = "0.4.37", features = ["serde"]}
+pg_mapper = "0.2.1"
+tokio-postgres = "0.7.10"
+jsonwebtoken = "9.3.0"
+uuid = {version = "1.8.0", features = ["serde"]}

@@ -13,7 +13,7 @@ use axum::{
 use regex::Regex;
 use validator::Validate;
 
-pub struct ValidatedBody<J, TVE>(pub J, pub TVE);
+pub struct ValidatedBody<Data, TVE>(pub Data, pub TVE);
 
 #[async_trait]
 impl<S, T, TVE> FromRequest<S> for ValidatedBody<T, TVE>

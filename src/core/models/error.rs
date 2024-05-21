@@ -1,6 +1,6 @@
 use axum::{
     body::Body,
-    http::{header::WWW_AUTHENTICATE, HeaderMap, HeaderValue, StatusCode},
+    http::StatusCode,
     response::{IntoResponse, Response},
     Json,
 };
@@ -22,6 +22,7 @@ impl ErrorResponse {
                 StatusCode::NOT_FOUND => "Not Found".to_string(),
                 StatusCode::BAD_REQUEST => "Bad Request".to_string(),
                 StatusCode::UNPROCESSABLE_ENTITY => "Unprocessable Entity".to_string(),
+                StatusCode::CONFLICT => "Conflict".to_string(),
                 _ => "Internal Server Error".to_string(),
             },
         }
@@ -29,19 +30,16 @@ impl ErrorResponse {
 }
 #[derive(Debug)]
 pub struct ErrorMessage {
-    message: String,
+    pub message: String,
 }
 
 #[derive(thiserror::Error, Debug)]
 pub enum ApiError {
-    #[error("authentication required")]
-    Unauthorized(ErrorMessage),
-
     #[error("user may not perform this action")]
     Forbidden,
 
     #[error("request path or resource not found")]
-    NotFound(ErrorMessage),
+    NotFound(String),
 
     #[error("error in the request body")]
     BadRequest { errors: Vec<String> },
@@ -50,17 +48,24 @@ pub enum ApiError {
     Database(#[from] sqlx::Error),
 
     #[error("an internal server error occurred")]
-    InternalServer(#[from] anyhow::Error),
+    InternalServer(String),
+
+    #[error("a conflict occurred, eg: data already exists")]
+    Conflict(String),
+
+    #[error("invalid password or authorization token")]
+    Unauthorized(String),
 }
 
 impl ApiError {
     fn status_code(&self) -> StatusCode {
         match self {
-            Self::Unauthorized(..) => StatusCode::UNAUTHORIZED,
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::NotFound(..) => StatusCode::NOT_FOUND,
             Self::BadRequest { .. } => StatusCode::BAD_REQUEST,
             Self::Database(_) | Self::InternalServer(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Conflict(_) => StatusCode::CONFLICT,
+            Self::Unauthorized(_) => StatusCode::UNAUTHORIZED,
         }
     }
 }
@@ -72,27 +77,41 @@ impl IntoResponse for ApiError {
                 let code = self.status_code();
                 return (code, Json(ErrorResponse::new(errors.to_vec(), code))).into_response();
             }
-            Self::Unauthorized(_) => {
+            Self::NotFound(ref error) => {
+                let code = self.status_code();
                 return (
-                    self.status_code(),
-                    [(WWW_AUTHENTICATE, HeaderValue::from_static("Token"))]
-                        .into_iter()
-                        .collect::<HeaderMap>(),
-                    self.to_string(),
+                    code,
+                    Json(ErrorResponse::new(vec![error.to_string()], code)),
                 )
                     .into_response();
             }
-
+            Self::Unauthorized(ref error) => {
+                let code = self.status_code();
+                return (
+                    code,
+                    Json(ErrorResponse::new(vec![error.to_string()], code)),
+                )
+                    .into_response();
+            }
             Self::Database(ref e) => {
                 // TODO: we probably want to use `tracing` instead
                 // so that this gets linked to the HTTP request by `TraceLayer`.
                 // log::error!("SQLx error: {:?}", e);
+                let code = self.status_code();
+                return (code, Json(ErrorResponse::new(vec![e.to_string()], code))).into_response();
             }
 
             Self::InternalServer(ref e) => {
                 // TODO: we probably want to use `tracing` instead
                 // so that this gets linked to the HTTP request by `TraceLayer`.
                 // log::error!("Generic error: {:?}", e);
+                let code = self.status_code();
+                return (code, Json(ErrorResponse::new(vec![e.to_string()], code))).into_response();
+            }
+
+            Self::Conflict(ref e) => {
+                let code = self.status_code();
+                return (code, Json(ErrorResponse::new(vec![e.to_string()], code))).into_response();
             }
 
             // Other errors get mapped normally.
