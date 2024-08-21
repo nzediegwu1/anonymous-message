@@ -28,10 +28,6 @@ impl ErrorResponse {
         }
     }
 }
-#[derive(Debug)]
-pub struct ErrorMessage {
-    pub message: String,
-}
 
 #[derive(thiserror::Error, Debug)]
 pub enum ApiError {
