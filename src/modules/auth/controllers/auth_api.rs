@@ -1,6 +1,6 @@
 use crate::{
     core::{
-        extractors::{Authorized, ValidatedBody},
+        extractors::{Authorized, CustomPath, ValidatedBody},
         models::Claims,
     },
     modules::auth::{
@@ -12,7 +12,6 @@ use crate::{
 };
 use axum::{
     body::Body,
-    extract::Path,
     response::{Json, Response},
     Extension,
 };
@@ -37,8 +36,8 @@ pub async fn find_users(
 
 pub async fn find_user(
     ctx: Extension<ApiContext>,
-    //TODO: implement custom Uuid extractor so that 400 error response will be standard
-    Path(user_id): Path<Uuid>,
+    CustomPath(user_id): CustomPath<Uuid>,
+    Authorized(_): Authorized<Claims>,
 ) -> Result<Json<UserName>, Response<Body>> {
     let user = find_by_id(ctx, user_id).await?;
     Ok(user)
